@@ -1,0 +1,177 @@
+<?php
+include("header.php");
+
+
+// Establish a database connection
+include('functions.php');
+
+// Check if the user is not logged in and redirect to login page
+if (!loggedin()) {
+    header("Location: login.php");
+    exit; // Terminate further execution
+}
+
+$conn = connectdb(); // Assuming connectdb() establishes a MySQLi connection
+
+?>
+<!-- <link href="css/self.css" rel="stylesheet"> -->
+
+<div class="container">
+    <?php include('menu.php'); ?>
+    <div class="row-fluid" id="main-content">
+        <div class="span1"></div>
+        <div class="span5">
+        <h2 align="center" style="color: white;"><small>Search for a preferred ride</small></h2>
+
+            <hr>
+            <br />
+            <form method="post" action="getride.php">
+                <input type="hidden" name="action" value="search" />
+                <?php if(isset($_POST['action'])): ?>
+                <input type="text" name="from" value="<?php echo isset($_POST['from']) ? $_POST['from'] : ''; ?>" data-provide="typeahead" class="typeahead" placeholder="Source" required/><br/>
+                <input type="text" name="to" value="<?php echo isset($_POST['to']) ? $_POST['to'] : ''; ?>" data-provide="typeahead" class="typeahead" placeholder="Destination"  required/><br/>
+                <div id="uptimepicker" class="input-append date">
+                    <input type="text" value="<?php echo isset($_POST['uptime']) ? $_POST['uptime'] : ''; ?>" name="uptime"></input>
+                    <span class="add-on">
+                        <i data-time-icon="icon-time" data-date-icon="icon-calendar"></i>
+                    </span>
+                </div> <br/>
+                <div id="downtimepicker" class="input-append date">
+                    <input type="text" value="<?php echo isset($_POST['downtime']) ? $_POST['downtime'] : ''; ?>" name="downtime"></input>
+                    <span class="add-on">
+                        <i data-time-icon="icon-time" data-date-icon="icon-calendar"></i>
+                    </span>
+                </div>
+                <?php else: ?>
+                <input type="text" name="from"  data-provide="typeahead" class="typeahead" placeholder="Source" required/><br/>
+                <input type="text" name="to"  data-provide="typeahead" class="typeahead" placeholder="Destination"  required/><br/>
+                <div id="uptimepicker" class="input-append date">
+                    <input type="text" placeholder="uptime" name="Uptime"></input>
+                    <span class="add-on">
+                        <i data-time-icon="icon-time" data-date-icon="icon-calendar"></i>
+                    </span>
+                </div> <br/>
+                <div id="downtimepicker" class="input-append date">
+                    <input type="text" placeholder="Downtime" name="downtime"></input>
+                    <span class="add-on">
+                        <i data-time-icon="icon-time" data-date-icon="icon-calendar"></i>
+                    </span>
+                </div>
+                <div></div>
+                <?php endif; ?>
+
+                <label class="checkbox inline">
+                    <input type="checkbox" id="inlineCheckbox2" name="car" value="Car"> Car
+                </label>
+
+                <label class="checkbox inline">
+                    <input type="checkbox" id="inlineCheckbox1" name="bike" value="Bike"> Bike
+                </label>
+
+                <br/>
+                <br/>
+                <input class="btn" type="submit" name="submit" value="Search"/>
+            </form>
+        </div>
+        <div class="span5">
+    <h2 align="center"><small>Search Results</small></h2> <hr/>
+    <?php if(isset($_POST['action'])):
+        $from = isset($_POST['from']) ? $_POST['from'] : '';
+        $to = isset($_POST['to']) ? $_POST['to'] : '';
+        $uptime = isset($_POST['uptime']) ? $_POST['uptime'] : '';
+        $downtime = isset($_POST['downtime']) ? $_POST['downtime'] : '';
+        $bike = isset($_POST['bike']) ? 1 : 0;
+        $car = isset($_POST['car']) ? 1 : 0;
+  
+        // Perform database queries and display search results accordingly
+        $query = "SELECT r1.cid 
+        FROM route r1 
+        INNER JOIN route r2 ON r1.place='".$from."' 
+        AND r2.place='".$to."' 
+        AND r1.serialno < r2.serialno 
+        AND r1.cid=r2.cid";
+
+    // Add condition for vehicle type (if car checkbox is checked)
+    if ($car == 1) {
+    $query .= " INNER JOIN offers o ON r1.cid = o.id AND o.vehicle = 'Car'";
+    }
+
+$result = mysqli_query($conn, $query);
+
+
+        if(mysqli_num_rows($result) == 0) {
+            echo("<p align='center'>No Upcoming car pools match your request :( </p>\n");
+        } else {
+            echo '<table id="upcominglist" class="table table-hover">
+                    <thead><tr><th>Id</th> <th>Vehicle Type</th> <th> From </th> <th> To </th> <th> Starting Time</th><th>Connection Type</th></tr></thead>
+                    <tbody>';
+
+            while($row = mysqli_fetch_array($result)) {
+                $query2 = "SELECT `id`,`vehicle`,`from`,`to`,`uptime` 
+                           FROM offers 
+                           WHERE id='".$row['cid']."' 
+                           AND `uptime` >='".$uptime."' 
+                           AND `uptime` <='".$downtime."'";
+
+                $res = mysqli_query($conn, $query2);
+
+                if(mysqli_num_rows($res) > 0) {
+                    while($result2 = mysqli_fetch_array($res)) {
+                        echo "<tr><td>".$result2['id']."</td><td>".$result2['vehicle']."</td><td>".$result2['from']."</td><td>".$result2['to']."</td><td>".$result2['uptime']."</td>";
+                        if($from == $result2['from'] && $to == $result2['to']) {
+                            echo "<td>Direct</td></tr>";
+                        } else {
+                            echo "<td>Via</td></tr>";
+                        }
+                    }
+                }
+            }
+            echo '</tbody></table>';
+        }
+    endif;
+    
+    ?>
+</div>
+
+    </div>
+</div>
+
+<!-- Rest of  HTML code -->
+
+<script src="http://code.jquery.com/jquery-latest.js"></script>
+<script src="js/bootstrap.min.js"></script>
+<script type="text/javascript" src="js/datetimepicker.js"></script>
+<script type="text/javascript">
+    $('#uptimepicker').datetimepicker({
+        format: 'yyyy-MM-dd hh:mm:ss',
+    });
+    $('#downtimepicker').datetimepicker({
+        format: 'yyyy-MM-dd hh:mm:ss',
+    });
+
+    $(document).ready(function() {
+    $('#searchResults tbody').on('click', 'tr', function() {
+        var rideId = $(this).find('td:first').text().trim();
+        console.log("Clicked ride ID:", rideId); // Log the ride ID to the console
+        window.location.href = "ride.php?id=" + rideId;
+    });
+
+
+});
+
+
+</script>
+<script>
+    // City typeahead
+    <?php 
+    $query = "SELECT city_name from cities";
+    $result = mysqli_query($conn, $query);
+    echo "var city = [];";
+    while ($row = mysqli_fetch_array($result)) {
+        echo 'city.push("' . $row["city_name"] . '");';
+    }
+    ?>
+    $(".typeahead").typeahead({source : city})
+</script>
+</body>
+</html>
